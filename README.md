@@ -1,5 +1,7 @@
 # CLAWD App Competition Registry
 
+**Live URL:** https://bafybeiajmcqk6k4tnzn3yifvtjmitxhqofzaqeb5oyikjikviwphhnyube.ipfs.community.bgipfs.com/
+
 A public on-chain submission registry for the CLAWD app build competition on Base. Users burn CLAWD tokens to register their app entries, creating a permanent on-chain record.
 
 ## What It Does
