@@ -1,83 +1,44 @@
-# 🏗 Scaffold-ETH 2
+# CLAWD App Competition Registry
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+A public on-chain submission registry for the CLAWD app build competition on Base. Users burn CLAWD tokens to register their app entries, creating a permanent on-chain record.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+## What It Does
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+- **Submit** your app to the competition by burning CLAWD tokens (currently 5,000 CLAWD per submission)
+- **Browse** all submissions on the public registry — app name, description, URL, GitHub link, submitter address
+- **Admin** controls to manage submissions and adjust the burn amount
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+## Live App
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+IPFS deployment: see `DEPLOYMENT.md` after delivery
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+## Contract on Base
 
-## Requirements
+`CLAWDRegistry` — [`0x2eD974558336936E26E9A4B43E608d0a58416f39`](https://basescan.org/address/0x2eD974558336936E26E9A4B43E608d0a58416f39) ✓ Verified
 
-Before you begin, you need to install the following tools:
+CLAWD Token: [`0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07`](https://basescan.org/address/0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07)
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+## Running Locally
 
-## Quickstart
-
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
-
-```
-cd my-dapp-example
+```bash
 yarn install
+yarn chain         # start local anvil
+yarn deploy        # deploy contracts locally
+yarn start         # frontend at localhost:3000
 ```
 
-2. Run a local network in the first terminal:
+## Architecture
 
-```
-yarn chain
-```
+- `packages/foundry/contracts/CLAWDRegistry.sol` — burn-to-submit registry with admin controls
+- `packages/nextjs/app/page.tsx` — public submissions list (reads from events)
+- `packages/nextjs/app/submit/page.tsx` — submission form (Approve → Submit two-step flow)
+- `packages/nextjs/app/admin/page.tsx` — admin panel (gated to admin wallet)
 
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
+## Admin Actions
 
-3. On a second terminal, deploy the test contract:
+The admin wallet (`0x34aa3f359a9d614239015126635ce7732c18fdf3`) can:
+- `setBurnAmount(uint256)` — adjust the CLAWD burn requirement
+- `removeSubmission(uint256)` — soft-remove a submission (hidden from public view)
+- `transferAdmin(address)` — transfer admin role
 
-```
-yarn deploy
-```
-
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
-
-4. On a third terminal, start your NextJS app:
-
-```
-yarn start
-```
-
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
-
-Run smart contract test with `yarn foundry:test`
-
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
-
-
-## Documentation
-
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
-
-To know more about its features, check out our [website](https://scaffoldeth.io).
-
-## Contributing to Scaffold-ETH 2
-
-We welcome contributions to Scaffold-ETH 2!
-
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+No `acceptOwnership()` call required — contract uses direct admin assignment.

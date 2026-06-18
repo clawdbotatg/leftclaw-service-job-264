@@ -4,6 +4,154 @@
  */
 import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
-const deployedContracts = {} as const;
+const deployedContracts = {
+  8453: {
+    CLAWDRegistry: {
+      address: "0x2eD974558336936E26E9A4B43E608d0a58416f39",
+      abi: [
+        {
+          type: "constructor",
+          inputs: [
+            { name: "_admin", type: "address", internalType: "address" },
+            { name: "_initialBurnAmount", type: "uint256", internalType: "uint256" },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "CLAWD",
+          inputs: [],
+          outputs: [{ name: "", type: "address", internalType: "contract IERC20" }],
+          stateMutability: "view",
+        },
+        { type: "function", name: "acceptAdmin", inputs: [], outputs: [], stateMutability: "nonpayable" },
+        {
+          type: "function",
+          name: "admin",
+          inputs: [],
+          outputs: [{ name: "", type: "address", internalType: "address" }],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "burnAmount",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "pendingAdmin",
+          inputs: [],
+          outputs: [{ name: "", type: "address", internalType: "address" }],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "removeSubmission",
+          inputs: [{ name: "id", type: "uint256", internalType: "uint256" }],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setBurnAmount",
+          inputs: [{ name: "newAmount", type: "uint256", internalType: "uint256" }],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "submissionCount",
+          inputs: [],
+          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "submissions",
+          inputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            { name: "id", type: "uint256", internalType: "uint256" },
+            { name: "submitter", type: "address", internalType: "address" },
+            { name: "appName", type: "string", internalType: "string" },
+            { name: "description", type: "string", internalType: "string" },
+            { name: "url", type: "string", internalType: "string" },
+            { name: "githubUrl", type: "string", internalType: "string" },
+            { name: "timestamp", type: "uint256", internalType: "uint256" },
+            { name: "removed", type: "bool", internalType: "bool" },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "submit",
+          inputs: [
+            { name: "appName", type: "string", internalType: "string" },
+            { name: "description", type: "string", internalType: "string" },
+            { name: "url", type: "string", internalType: "string" },
+            { name: "githubUrl", type: "string", internalType: "string" },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "transferAdmin",
+          inputs: [{ name: "newAdmin", type: "address", internalType: "address" }],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "event",
+          name: "AdminTransferInitiated",
+          inputs: [
+            { name: "currentAdmin", type: "address", indexed: true, internalType: "address" },
+            { name: "pendingAdmin", type: "address", indexed: true, internalType: "address" },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "AdminTransferred",
+          inputs: [
+            { name: "previousAdmin", type: "address", indexed: true, internalType: "address" },
+            { name: "newAdmin", type: "address", indexed: true, internalType: "address" },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "BurnAmountUpdated",
+          inputs: [
+            { name: "oldAmount", type: "uint256", indexed: false, internalType: "uint256" },
+            { name: "newAmount", type: "uint256", indexed: false, internalType: "uint256" },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "SubmissionRemoved",
+          inputs: [{ name: "id", type: "uint256", indexed: true, internalType: "uint256" }],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "Submitted",
+          inputs: [
+            { name: "id", type: "uint256", indexed: true, internalType: "uint256" },
+            { name: "submitter", type: "address", indexed: true, internalType: "address" },
+            { name: "appName", type: "string", indexed: false, internalType: "string" },
+            { name: "burnAmount", type: "uint256", indexed: false, internalType: "uint256" },
+            { name: "timestamp", type: "uint256", indexed: false, internalType: "uint256" },
+          ],
+          anonymous: false,
+        },
+        { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
+      ],
+      inheritedFunctions: {},
+    },
+  },
+} as const;
 
 export default deployedContracts satisfies GenericContractsDeclaration;
