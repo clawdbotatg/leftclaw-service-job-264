@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { formatUnits } from "viem";
 import { base } from "viem/chains";
