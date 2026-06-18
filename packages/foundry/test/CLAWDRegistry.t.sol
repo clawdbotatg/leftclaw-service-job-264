@@ -49,6 +49,16 @@ contract MockERC20 {
         emit Transfer(from, to, amount);
         return true;
     }
+
+    /// @notice ERC20Burnable.burnFrom — spends allowance then destroys tokens
+    function burnFrom(address account, uint256 amount) external {
+        require(balanceOf[account] >= amount, "insufficient balance");
+        require(allowance[account][msg.sender] >= amount, "insufficient allowance");
+        allowance[account][msg.sender] -= amount;
+        balanceOf[account] -= amount;
+        totalSupply -= amount;
+        emit Transfer(account, address(0), amount);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -113,16 +123,17 @@ contract CLAWDRegistryTest is Test {
 
     function test_Submit_BurnsSendsToBurnAddress() public {
         uint256 balanceBefore = clawd.balanceOf(user1);
+        uint256 supplyBefore = clawd.totalSupply();
 
         vm.startPrank(user1);
         clawd.approve(address(registry), BURN_AMOUNT);
         registry.submit("App", "desc", "http://url", "http://github");
         vm.stopPrank();
 
-        // User lost burnAmount
+        // User's balance decreased by burnAmount
         assertEq(clawd.balanceOf(user1), balanceBefore - BURN_AMOUNT);
-        // Burn address received tokens
-        assertEq(clawd.balanceOf(address(0)), BURN_AMOUNT);
+        // Total supply decreased by burnAmount (tokens were burned, not transferred)
+        assertEq(clawd.totalSupply(), supplyBefore - BURN_AMOUNT);
     }
 
     function test_Submit_EmitsEvent() public {
@@ -169,6 +180,43 @@ contract CLAWDRegistryTest is Test {
         vm.stopPrank();
     }
 
+    function test_Submit_RevertsEmptyAppName() public {
+        vm.startPrank(user1);
+        clawd.approve(address(registry), BURN_AMOUNT);
+        vm.expectRevert("Invalid appName length");
+        registry.submit("", "desc", "http://url", "http://github");
+        vm.stopPrank();
+    }
+
+    function test_Submit_RevertsEmptyUrl() public {
+        vm.startPrank(user1);
+        clawd.approve(address(registry), BURN_AMOUNT);
+        vm.expectRevert("Invalid url length");
+        registry.submit("App", "desc", "", "http://github");
+        vm.stopPrank();
+    }
+
+    function test_Submit_RevertsLongAppName() public {
+        // 101-character string
+        string memory longName = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        vm.startPrank(user1);
+        clawd.approve(address(registry), BURN_AMOUNT);
+        vm.expectRevert("Invalid appName length");
+        registry.submit(longName, "desc", "http://url", "http://github");
+        vm.stopPrank();
+    }
+
+    function test_Submit_RevertsLongDescription() public {
+        // Build a 1001-character description
+        bytes memory longDesc = new bytes(1001);
+        for (uint256 i = 0; i < 1001; i++) longDesc[i] = "a";
+        vm.startPrank(user1);
+        clawd.approve(address(registry), BURN_AMOUNT);
+        vm.expectRevert("Description too long");
+        registry.submit("App", string(longDesc), "http://url", "http://github");
+        vm.stopPrank();
+    }
+
     // -------------------------------------------------------------------------
     // setBurnAmount()
     // -------------------------------------------------------------------------
@@ -196,6 +244,12 @@ contract CLAWDRegistryTest is Test {
         vm.prank(user1);
         vm.expectRevert("Not admin");
         registry.setBurnAmount(1000 * 1e18);
+    }
+
+    function test_SetBurnAmount_RevertsZero() public {
+        vm.prank(adminWallet);
+        vm.expectRevert("Burn amount must be non-zero");
+        registry.setBurnAmount(0);
     }
 
     // -------------------------------------------------------------------------
@@ -268,17 +322,64 @@ contract CLAWDRegistryTest is Test {
         assertFalse(removed);
     }
 
+    function test_RemoveSubmission_RevertsAlreadyRemoved() public {
+        vm.startPrank(user1);
+        clawd.approve(address(registry), BURN_AMOUNT);
+        registry.submit("App", "desc", "http://url", "http://github");
+        vm.stopPrank();
+
+        vm.prank(adminWallet);
+        registry.removeSubmission(1);
+
+        // Second attempt should revert
+        vm.prank(adminWallet);
+        vm.expectRevert("Submission already removed");
+        registry.removeSubmission(1);
+    }
+
     // -------------------------------------------------------------------------
-    // transferAdmin()
+    // transferAdmin() / acceptAdmin() — two-step admin transfer
     // -------------------------------------------------------------------------
 
     function test_TransferAdmin_Success() public {
         address newAdmin = makeAddr("newAdmin");
 
+        // Step 1: initiate transfer — pendingAdmin is set, admin unchanged
         vm.prank(adminWallet);
         registry.transferAdmin(newAdmin);
 
+        assertEq(registry.pendingAdmin(), newAdmin);
+        assertEq(registry.admin(), adminWallet); // not yet transferred
+
+        // Step 2: new admin accepts
+        vm.prank(newAdmin);
+        registry.acceptAdmin();
+
         assertEq(registry.admin(), newAdmin);
+        assertEq(registry.pendingAdmin(), address(0));
+    }
+
+    function test_TransferAdmin_EmitsInitiatedEvent() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.expectEmit(true, true, false, false);
+        emit CLAWDRegistry.AdminTransferInitiated(adminWallet, newAdmin);
+
+        vm.prank(adminWallet);
+        registry.transferAdmin(newAdmin);
+    }
+
+    function test_TransferAdmin_EmitsTransferredEvent() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(adminWallet);
+        registry.transferAdmin(newAdmin);
+
+        vm.expectEmit(true, true, false, false);
+        emit CLAWDRegistry.AdminTransferred(adminWallet, newAdmin);
+
+        vm.prank(newAdmin);
+        registry.acceptAdmin();
     }
 
     function test_TransferAdmin_RevertsIfNotAdmin() public {
@@ -293,16 +394,42 @@ contract CLAWDRegistryTest is Test {
         registry.transferAdmin(address(0));
     }
 
-    function test_TransferAdmin_OldAdminLosesAccess() public {
+    function test_TransferAdmin_OldAdminLosesAccessAfterAccept() public {
         address newAdmin = makeAddr("newAdmin");
 
         vm.prank(adminWallet);
         registry.transferAdmin(newAdmin);
 
+        vm.prank(newAdmin);
+        registry.acceptAdmin();
+
         // Old admin can no longer call setBurnAmount
         vm.prank(adminWallet);
         vm.expectRevert("Not admin");
-        registry.setBurnAmount(1);
+        registry.setBurnAmount(1 * 1e18);
+    }
+
+    function test_AcceptAdmin_RevertsIfNotPendingAdmin() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(adminWallet);
+        registry.transferAdmin(newAdmin);
+
+        // Random user cannot accept
+        vm.prank(user1);
+        vm.expectRevert("Not pending admin");
+        registry.acceptAdmin();
+
+        // Old admin cannot accept on behalf of the pending admin
+        vm.prank(adminWallet);
+        vm.expectRevert("Not pending admin");
+        registry.acceptAdmin();
+    }
+
+    function test_AcceptAdmin_RevertsIfNoPendingTransfer() public {
+        vm.prank(user1);
+        vm.expectRevert("Not pending admin");
+        registry.acceptAdmin();
     }
 
     // -------------------------------------------------------------------------
@@ -318,5 +445,10 @@ contract CLAWDRegistryTest is Test {
     function test_Constructor_RevertsZeroAdmin() public {
         vm.expectRevert("Admin cannot be zero address");
         new CLAWDRegistry(address(0), BURN_AMOUNT);
+    }
+
+    function test_Constructor_RevertsZeroBurnAmount() public {
+        vm.expectRevert("Initial burn amount must be non-zero");
+        new CLAWDRegistry(adminWallet, 0);
     }
 }

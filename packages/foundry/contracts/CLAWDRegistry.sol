@@ -2,18 +2,24 @@
 pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+/**
+ * @notice Minimal interface for ERC20Burnable — used to burn CLAWD from submitters.
+ */
+interface IERC20Burnable {
+    function burnFrom(address account, uint256 amount) external;
+}
 
 /**
  * @title CLAWDRegistry
  * @notice Public on-chain submission registry for the CLAWD app build competition.
  *         Users burn CLAWD tokens on Base to submit their app entry.
- * @dev CLAWD token is hardcoded to Base mainnet address. Burn = transfer to address(0).
+ * @dev CLAWD token is hardcoded to Base mainnet address.
+ *      Burn is performed via burnFrom(), which requires the caller to hold
+ *      an allowance granted by the submitter (CLAWD.approve(registry, burnAmount)).
  */
 contract CLAWDRegistry is ReentrancyGuard {
-    using SafeERC20 for IERC20;
-
     // CLAWD token on Base — hardcoded, not configurable
     IERC20 public constant CLAWD = IERC20(0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07);
 
@@ -33,6 +39,9 @@ contract CLAWDRegistry is ReentrancyGuard {
 
     /// @notice Admin wallet — has exclusive access to setBurnAmount, removeSubmission, transferAdmin
     address public admin;
+
+    /// @notice Pending admin address set during a two-step admin transfer; zero if none in progress
+    address public pendingAdmin;
 
     /// @notice Total number of submissions ever made (IDs are 1-indexed)
     uint256 public submissionCount;
@@ -55,6 +64,10 @@ contract CLAWDRegistry is ReentrancyGuard {
 
     event BurnAmountUpdated(uint256 oldAmount, uint256 newAmount);
 
+    event AdminTransferInitiated(address indexed currentAdmin, address indexed pendingAdmin);
+
+    event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
+
     // -------------------------------------------------------------------------
     // Modifiers
     // -------------------------------------------------------------------------
@@ -70,10 +83,11 @@ contract CLAWDRegistry is ReentrancyGuard {
 
     /**
      * @param _admin            Address to receive admin privileges
-     * @param _initialBurnAmount Initial CLAWD burn amount per submission (raw units)
+     * @param _initialBurnAmount Initial CLAWD burn amount per submission (raw units, must be > 0)
      */
     constructor(address _admin, uint256 _initialBurnAmount) {
         require(_admin != address(0), "Admin cannot be zero address");
+        require(_initialBurnAmount > 0, "Initial burn amount must be non-zero");
         admin = _admin;
         burnAmount = _initialBurnAmount;
     }
@@ -84,9 +98,9 @@ contract CLAWDRegistry is ReentrancyGuard {
 
     /**
      * @notice Submit an app entry by burning `burnAmount` CLAWD tokens.
-     * @dev Caller must have approved this contract for at least `burnAmount` CLAWD.
-     *      Burn is performed by transferring to address(0); standard ERC20 does not
-     *      block zero-address transfers.
+     * @dev Caller must have approved this contract for at least `burnAmount` CLAWD
+     *      before calling this function. The registry calls burnFrom() on the CLAWD
+     *      token, which spends the allowance and destroys the tokens.
      */
     function submit(
         string calldata appName,
@@ -97,8 +111,13 @@ contract CLAWDRegistry is ReentrancyGuard {
         external
         nonReentrant
     {
-        // Pull CLAWD from caller and send to the zero address (burn)
-        CLAWD.safeTransferFrom(msg.sender, address(0), burnAmount);
+        require(bytes(appName).length > 0 && bytes(appName).length <= 100, "Invalid appName length");
+        require(bytes(description).length <= 1000, "Description too long");
+        require(bytes(url).length > 0 && bytes(url).length <= 256, "Invalid url length");
+        require(bytes(githubUrl).length <= 256, "Github URL too long");
+
+        // Burn CLAWD from caller using burnFrom — requires prior approval
+        IERC20Burnable(address(CLAWD)).burnFrom(msg.sender, burnAmount);
 
         uint256 id = ++submissionCount;
         uint256 ts = block.timestamp;
@@ -123,8 +142,10 @@ contract CLAWDRegistry is ReentrancyGuard {
 
     /**
      * @notice Update the CLAWD burn amount required per submission.
+     * @param newAmount New burn amount in raw token units; must be greater than zero.
      */
     function setBurnAmount(uint256 newAmount) external onlyAdmin {
+        require(newAmount > 0, "Burn amount must be non-zero");
         uint256 old = burnAmount;
         burnAmount = newAmount;
         emit BurnAmountUpdated(old, newAmount);
@@ -135,15 +156,31 @@ contract CLAWDRegistry is ReentrancyGuard {
      */
     function removeSubmission(uint256 id) external onlyAdmin {
         require(id > 0 && id <= submissionCount, "Invalid submission id");
+        require(!submissions[id].removed, "Submission already removed");
         submissions[id].removed = true;
         emit SubmissionRemoved(id);
     }
 
     /**
-     * @notice Transfer admin role to a new address.
+     * @notice Initiate a two-step admin transfer. The new admin must call acceptAdmin()
+     *         to complete the transfer.
+     * @param newAdmin Address to nominate as the next admin.
      */
     function transferAdmin(address newAdmin) external onlyAdmin {
         require(newAdmin != address(0), "New admin cannot be zero address");
-        admin = newAdmin;
+        pendingAdmin = newAdmin;
+        emit AdminTransferInitiated(admin, newAdmin);
+    }
+
+    /**
+     * @notice Accept the pending admin role. Only callable by the address set in
+     *         transferAdmin(). Completes the two-step ownership handover.
+     */
+    function acceptAdmin() external {
+        require(msg.sender == pendingAdmin, "Not pending admin");
+        address previous = admin;
+        admin = pendingAdmin;
+        pendingAdmin = address(0);
+        emit AdminTransferred(previous, admin);
     }
 }
